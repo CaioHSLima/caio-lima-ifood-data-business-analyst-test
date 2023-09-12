@@ -1,0 +1,972 @@
+---
+title: "ifood_test_caio_lima"
+subtitle: "Case Ifood - Caio Lima"
+output:
+  pdf_document: 
+    citation_package: natbib
+  html_notebook: default
+  latex_engine: xelatex
+urlcolor: blue
+header-includes:
+   - \usepackage{enumitem}
+#bibliography: referencia.bib
+---
+
+```{r setup, include=FALSE}
+# Você pode alterar esse chunk caso ajude em ter um relatório mais organizado
+knitr::opts_chunk$set(echo = FALSE,message = FALSE,
+                      fig.pos = "H")
+options(scipen=9999)
+options(dplyr.summarise.inform = FALSE)
+options(warn = -1)
+```
+
+```{r packages,message=FALSE,warning=FALSE,results='hide'}
+library(tidyverse)
+library(tidymodels)
+library(GGally)
+
+library(knitr)
+library(readr)
+library(kableExtra)
+library(xtable)
+
+library(summarytools)
+library(caret)
+library(FNN)
+library(ModelMetrics)
+library(pls)
+library(leaps)
+
+library(lubridate)
+library("amap")
+library(factoextra)
+library(FactoMineR)
+```
+
+# Introdução
+
+## Empresa
+
+Considere uma empresa bem estabelecida que opera no setor varejista de alimentos. Atualmente possui centenas de milhares de clientes registrados e atendem quase um milhão de consumidores por ano. A empresa vende produtos de 5 categorias: vinhos, produtos de carnes raras, frutas exóticas, peixes especialmente preparados e produtos doces. Essas categorias podem ser subdivididas em produtos premium (Ouro) e produtos convencionais (Regulares). Os clientes podem fazer pedidos e adquirir produtos por meio de três canais de vendas: lojas físicas, catálogos e o site da empresa. Embora a empresa tenha registrado sólidos resultados financeiros globais e tenha mantido uma margem de lucro saudável nos últimos três anos, as perspectivas de crescimento dos lucros para os próximos três anos não são muito encorajadoras. Por esse motivo, estão sendo consideradas diversas iniciativas estratégicas para reverter essa situação, sendo uma delas a melhoria do desempenho das atividades de marketing, com um enfoque especial em campanhas de marketing.
+
+## Departamento de Marketing
+
+O departamento de marketing enfrentou pressão para utilizar seu orçamento anual de forma mais eficaz. O Chief Marketing Officer (CMO) reconhece a importância de adotar uma abordagem mais orientada para dados ao tomar decisões. É por isso que uma pequena equipe de cientistas de dados foi recrutada com um objetivo claro em mente: desenvolver um modelo preditivo que apoie as iniciativas de marketing direto. Idealmente, o êxito dessas atividades demonstrará o valor dessa abordagem e persuadirá os indivíduos mais céticos dentro da empresa.
+
+# Objetivo 
+
+A equipe tem como meta desenvolver um modelo de previsão que otimize o lucro para a próxima campanha de marketing direto, agendada para o próximo mês, que é a sexta campanha da série. Esta campanha tem como objetivo principal a venda de um novo dispositivo para a base de clientes. Para criar o modelo, eles realizaram uma campanha piloto com 2.240 clientes selecionados aleatoriamente e contatados por telefone para adquirirem o dispositivo. Nos meses seguintes, identificaram os clientes que aderiram à oferta. O custo total dessa campanha de amostra foi de 6.720MU, enquanto a receita gerada pelos clientes que aceitaram a oferta atingiu 3.674MU. No geral, a campanha teve um prejuízo de -3.046MU, com uma taxa de sucesso de apenas 15%. A equipe tem como objetivo principal desenvolver um modelo capaz de prever o comportamento do cliente e aplicá-lo ao restante da base de clientes. Com sorte, o modelo permitirá que a empresa selecione os clientes mais propensos a comprar a oferta, excluindo os que não respondem, tornando a próxima campanha altamente lucrativa. Além de maximizar os lucros da campanha, o CMO também está interessado em estudar as características dos clientes dispostos a comprar o dispositivo.
+
+# Conjunto de dados
+
+O conjunto de dados inclui informações sociodemográficas e firmográficas sobre 2.240 clientes que foram contatados. Além disso, ele contém uma marcação para identificar os clientes que participaram da campanha, adquirindo o produto. As informações coletadas estão abaixo:
+
+\begin{itemize}
+  \item \textbf{ID}: \text{Identificador único do cliente}
+  \item \textbf{Year\_Birth}: \text{Ano de nascimento}
+  \item \textbf{Education}: \text{Nível de educação}
+  \item \textbf{Marital\_Status}: \text{Estado civíl}
+  \item \textbf{Income}: Renda
+  \item \textbf{Kidhome}: \text{Número de crianças na residência}
+  \item \textbf{Teenhome}: \text{Número de adolescentes na residência}
+  \item \textbf{Dt\_Customer}: \text{Data de cadastro do cliente}
+  \item \textbf{Recency}: \text{Número de dias desde a última compra}
+  \item \textbf{MntWines}:\text{ Valor gasto em vinhos nos últimos 2 anos}
+  \item \textbf{MntFruits}: \text{Valor gasto em frutas exóticas nos últimos 2 anos}
+  \item \textbf{MntMeatProducts}: \text{Valor gasto em carnes raras nos últimos 2 anos}
+  \item \textbf{MntFishProducts}: \text{Valor gasto em peixes nos últimos 2 anos}
+  \item \textbf{MntSweetProducts}: \text{Valor gasto em doces nos últimos 2 anos}
+  \item \textbf{MntGoldProds}: \text{Valor gasto em produtos premium nos últimos 2 anos}
+  \item \textbf{NumDealsPurchases}: \text{Número de compras feitas com desconto}
+  \item \textbf{NumWebPurchases}: \text{Número de compras feitas no site}
+  \item \textbf{NumCatalogPurchases}: \text{Número de compras feitas no catálogo}
+  \item \textbf{NumStorePurchases}: \text{Número de compras feitas diretamente nas lojas}
+  \item \textbf{NumWebVisitsMonth}: \text{NNúmero de visitas ao site no último mês}
+  \item \textbf{Complain}: \text{1 se o cliente reclamou nos últimos 2 anos, 0 c.c.}
+  \item \textbf{AcceptedCmp1}: \text{1 se o cliente aceitou a oferta da 1ª campanha, 0 c.c.}
+  \item \textbf{AcceptedCmp2}: \text{1 se o cliente aceitou a oferta da 2ª campanha, 0 c.c.}
+  \item \textbf{AcceptedCmp3}: \text{1 se o cliente aceitou a oferta da 3ª campanha, 0 c.c.}
+  \item \textbf{AcceptedCmp4}: \text{1 se o cliente aceitou a oferta da 4ª campanha, 0 c.c.}
+  \item \textbf{AcceptedCmp5}: \text{1 se o cliente aceitou a oferta da 5ª campanha, 0 c.c.}
+  \item \textbf{Response}: \text{1 se o cliente aceitou a oferta da última campanha, 0 c.c.}
+\end{itemize}
+
+```{r read_data}
+# Lendo os dados, selecionando as colunas na ordem de interesse
+column_names <- c('ID', 'Year_Birth', 'Education', 'Marital_Status', 
+                  'Income', 'Kidhome', 'Teenhome', 
+                  'Dt_Customer', 'Recency', 'MntWines', 'MntFruits', 'MntMeatProducts',
+                  'MntFishProducts', 'MntSweetProducts', 'MntGoldProds', 
+                  'NumDealsPurchases', 'NumWebPurchases', 'NumCatalogPurchases',
+                  'NumStorePurchases', 'NumWebVisitsMonth', 'Complain', 'AcceptedCmp1',
+                  'AcceptedCmp2', 'AcceptedCmp3', 'AcceptedCmp4', 'AcceptedCmp5', 'Response')
+data = read_csv("ml_project1_data.csv", 
+                col_select = all_of(column_names),
+                show_col_types = FALSE)
+
+# OBS
+## As colunas 'Z_CostContact' e 'Z_Revenue' não possuem descrição no dicionário de dados e apresentam o mesmo valor para todas as observações, então ambas foram retiradas
+
+```
+
+
+Dos campos sitados, foram observadas algumas características determinantes para o não uso ou necessidade de transformação da informação, sendo eles:
+
+\begin{itemize}
+  \item \textbf{ID}: Por ser um identificador único, não servirá como discrimador para a classificação dos clientes.
+  \item \textbf{Year\_Birth}: Pessoas nasceram entre 1940 e 1996, com exceção de 3 que "nasceram" antes de 1900 e dado o contexto teriam mais de 110 anos. Assim, podem se tratar de outliers.
+  \item \textbf{Dt\_Customer}: Algumas classes de modelos não aceitam o campo em formato de data, então seria interessante uma tranformação na informação para se adequar melhor aos cenários de classificação.
+  \item \textbf{Marital\_Status}: Há respostas incongruentes ('Absurd', 'Alone' e 'YOLO' - "You Only Live Once") e que serão interpretadas como a categoria 'Single'.
+  \item \textbf{Income}: Há uma renda informada como sendo U\$666666, um valor muito maior que a renda dos demais clientes e será considerado como Outlier. Além disso, houveram 16 clientes que não informaram a renda (resposta nula).
+  \item \textbf{Complain}: Apenas 21 (0.9\%) dos clientes fizeram reclamação. Como é pouco representativo, não servirá como discriminador para a classificação dos clientes.
+\end{itemize}
+
+```{r df_summary}
+# função dfSummary do pacote summarytools, que mostra um resumo dos dados
+# dfSummary(data, varnumbers = FALSE, valid.col = FALSE)
+```
+
+Assim, os camops *ID* e *Complain* não serão considerados na classificação. Para *Marital_Status* foram feitos os ajustes necessarios. Foi criado um novo campo *DaysSinceEnrol*, uma transformação da variável *Dt_Customer*, que marca o número de dias desde o registro do cliente na empresa e agora passa a ser um campo númerico mais simples de ser interpretado nos modelos. Para *Year_Birth* pode-se desconsiderar os clientes Outliers ou substituir seus valores pela mediana/média dos demais clientes. O mesmo pode ser feito para o cliente Outlier em *Income*. Afim de não se perdar a informação destes clientes, optou-se por substituir os valores discrepantes pela mediana geral.
+
+\newpage
+
+# Análise Descritiva
+
+```{r feat_corr_data_pre_proc}
+column_removed <- c("ID", "Complain")
+data_t <- data %>% 
+  dplyr::mutate(
+         Marital_Status = ifelse(Marital_Status %in% c('Absurd', 'Alone', 'YOLO'), 
+                                 'Single', Marital_Status),
+         Outlier_flag = ifelse(is.na(Income) | Income == 666666 | Year_Birth < 1940, 1,0),
+         #SUJEITO A ALTERAÇÃO
+         Income = ifelse(is.na(Income) | Income == 666666, 
+                         median((data %>% filter(!is.na(Income)))$Income), Income),
+         Year_Birth = ifelse(Year_Birth < 1940, median(Year_Birth), Year_Birth),
+         #Education = gsub("2n Cycle", "Cycle2n", Education)
+         ) %>% 
+  dplyr::mutate(Education = factor(Education, levels = c('Basic', '2n Cycle', 
+                                                  'Graduation', 'Master', 'PhD')),
+         Marital_Status = factor(Marital_Status, levels = c('Single', 'Together', 
+                                                  'Married', 'Divorced', 'Widow')),
+         DaysSinceEnrol = as.numeric(difftime(as.Date("2015-01-01"), Dt_Customer, units = "days"))
+         #WeeksSinceEnrol = as.numeric(difftime(as.Date("2015-01-01"), Dt_Customer, units = "weeks"))
+         ) %>% 
+  dplyr::select(-all_of(column_removed), -Dt_Customer)
+  
+
+data_t_model <- data_t%>% 
+  #dplyr::filter(Income < 150000, Outlier_flag == 0) %>% 
+  dplyr::select(c('Year_Birth', 'Education', 'Marital_Status', 
+                  'Income', 'Kidhome', 'Teenhome', 
+                  'DaysSinceEnrol', 'Recency', 'MntWines', 'MntFruits', 'MntMeatProducts',
+                  'MntFishProducts', 'MntSweetProducts', 'MntGoldProds', 
+                  'NumDealsPurchases', 'NumWebPurchases', 'NumCatalogPurchases',
+                  'NumStorePurchases', 'NumWebVisitsMonth', 'AcceptedCmp1',
+                  'AcceptedCmp2', 'AcceptedCmp3', 'AcceptedCmp4', 'AcceptedCmp5', 'Response')) %>% 
+  mutate(Response = factor(Response, levels = c(0,1))) 
+
+vect_factor <- c(data_t %>% map(levels) %>% unlist(), c('Absurd', 'Alone', 'YOLO', 0, 1, 2)) %>% unique()
+```
+
+
+
+
+```{r plot_pre_proc_num, eval=FALSE, fig.align='center', fig.cap="\\label{fig:fig.prepro.num} Disperção entre a Resposta e demais campos numéricos antes da transformação", fig.height=5.5, fig.width=7, message=FALSE, warning=FALSE, include=FALSE}
+
+data %>% 
+  select(-c("Education", "Marital_Status", "Kidhome", "Teenhome", 
+           "AcceptedCmp1", "AcceptedCmp2", "AcceptedCmp3", "AcceptedCmp4", "AcceptedCmp5")) %>% 
+  gather("Var", "Value", -c(Response), factor_key = TRUE) %>% 
+  ggplot(aes(y = Response, x = Value))+
+  geom_jitter()+
+  geom_smooth(method = lm, se = FALSE)+
+  facet_wrap(Var~., scales = "free_x")+
+  theme_bw()
+```
+
+```{r plot_pre_proc_cat, eval=FALSE, fig.align='center', fig.cap="\\label{fig:fig.prepro.cat} Disperção entre a Resposta e demais campos categóricos antes da transformação", fig.height=6, fig.width=7, message=FALSE, warning=FALSE, include=FALSE}
+
+data %>% 
+  dplyr::select(c("Education", "Marital_Status", "Kidhome", "Teenhome", 
+           "AcceptedCmp1", "AcceptedCmp2", "AcceptedCmp3", "AcceptedCmp4", "AcceptedCmp5",
+           "Response")) %>% 
+  gather("Var", "Value", -c(Response), factor_key = TRUE) %>% 
+  group_by_at(vars(-c(Response))) %>% 
+  mutate(Prop_Resp = ifelse(Response == 0,
+                            round(sum(abs(Response-1))/n(),3),
+                            round(sum(Response)/n(),3)),
+         Prop_Resp = paste0(as.character(Prop_Resp*100),"%"),
+         Value = factor(Value, levels = vect_factor)) %>% 
+  ggplot(aes(y = Response, x = Value))+
+  geom_jitter()+
+  geom_label(aes(label = Prop_Resp), label.size = 0.5, size=3.5)+
+  geom_smooth(method = lm, se = FALSE)+
+  facet_wrap(Var~., scales = "free_x", ncol = 2)+
+  theme_bw() +
+  theme(text = element_text(size=10)) 
+```
+
+
+O Gráfico \ref{fig:fig.pospro.num} apresenta uma dispersão geral dos dados quantitativos (após as tratativas citadas) em relação à resposta, quanto maior e mais concentrada a núvem de pontos maior é quantidade de clientes e a concentração na parte superior indica um maior número de casos positivos (compra do produto) ao longo dos valores de cada variável de interesse. A linha azul indica uma tendência, se está crescente então conforme o valor da variável aumenta mais clientes compraram o produto após receber a campanha, sendo análogo quando está decrescente. Desta forma, é possível observar que conforma a renda aumenta a compra do produto também aumenta. O mesmo ocorre com os gastos em cada tipo de produto. Conforme aumenta o número de dias desde o último pedido, diminui as chances de o cliente ter comprado o produto.
+
+```{r plot_pos_proc_num, fig.align='center', fig.cap="\\label{fig:fig.pospro.num} Disperção entre a Resposta e demais campos numéricos pós transformação", fig.height=6, fig.width=7, message=FALSE, warning=FALSE}
+data_t %>% 
+  filter(Outlier_flag == 0) %>% 
+  select(-c("Education", "Marital_Status", "Kidhome", "Teenhome", 
+           "AcceptedCmp1", "AcceptedCmp2", "AcceptedCmp3", "AcceptedCmp4", "AcceptedCmp5",
+           "Outlier_flag")) %>% 
+  gather("Var", "Value", -c(Response), factor_key = TRUE) %>% 
+  ggplot(aes(y = Response, x = Value))+
+  geom_jitter()+
+  geom_smooth(method = lm, se = FALSE)+
+  facet_wrap(Var~., scales = "free_x")+
+  theme_bw()
+```
+
+
+
+Já o Gráfico \ref{fig:fig.pospro.cat} apresenta uma dispersão geral dos dados qualitativos (após as tratativas citadas) em relação à resposta. Em educação é possível observar claramente que conforme o nível de edução aumenta maior é a proporção de clientes que comprarm o produto, um bom indicativo para o uso do campo. Em estado civíl há uma menor proporção de casos positivos para clientes que estão em relacionamento ("Together" ou "Married"). Conforme o número de crianças/adolescentes na residência aumenta, menos clientes compram o produto, proporcionalmente. Por fim, há um aumento muito grande nas chances do cliente comprar o produto se aceitou alguma das últimas 5 campanhas, ou seja, quem já aceitou uma vez tem uma maior propabilidade de aceitar novamente.
+
+```{r plot_pos_proc_cat, fig.align='center', fig.cap="\\label{fig:fig.pospro.cat} Disperção entre a Resposta e demais campos categóricos pós transformação", fig.height=4.5, fig.width=8, message=FALSE, warning=FALSE}
+data_t %>% 
+  select(c("Education", "Marital_Status", "Kidhome", "Teenhome", 
+           "AcceptedCmp1", "AcceptedCmp2", "AcceptedCmp3", "AcceptedCmp4", "AcceptedCmp5",
+           "Response")) %>% 
+  gather("Var", "Value", -c(Response), factor_key = TRUE) %>% 
+  mutate(Response = as.numeric(Response),
+         Value = factor(Value, levels = vect_factor)) %>% 
+  group_by_at(vars(-c(Response))) %>% 
+  mutate(Prop_Resp = ifelse(Response == "0",
+                            round(sum(abs(Response-1))/n(),3),
+                            round(sum(Response)/n(),3)),
+         Prop_Resp = paste0(as.character(Prop_Resp*100),"%")) %>% 
+  ggplot(aes(y = Response, x = Value))+
+  geom_jitter()+
+  geom_label(aes(label = Prop_Resp), label.size = 1, size=2.5)+
+  geom_smooth(method = lm, se = FALSE)+
+  facet_wrap(Var~., scales = "free_x", ncol = 3)+
+  theme_bw() +
+  theme(text = element_text(size=10)) 
+```
+
+A Figura \ref{fig:fig.corrplot} apresenta de forma mais concreta as relações entre as variáveis. É possível notar que não há informações que são extremamente correlacionadas com a resposta. O grupo de variáveis das outras campanhas são as mais relacionadas com o resultado da última e vale ressaltar que elas apresentam uma correlação entre si. Além disso, o número de pedidos entre os diferentes canais e os gastos em diferentes produtos apresentaram uma correlação positiva. Ano de nascimento tem uma correlação quase nula, ou seja, a idade do cliente não aparenta ter influência.
+
+```{r corplot, fig.cap = "\\label{fig:fig.corrplot} Correlação entre todas as variáveis", fig.align='center',fig.width=7,fig.height=7}
+
+library(RColorBrewer)
+library(corrplot)
+data_t_plot <- data_t_model %>%
+  mutate(Response = as.numeric(Response))
+#colnames(data_t_plot) <- abbreviate(colnames(data_t_plot))
+cor(data_t_plot %>% dplyr:::select(-c("Education", "Marital_Status"))) %>% 
+  corrplot::corrplot(addCoef.col = 'black', cl.pos = 'n', number.digits = 2, tl.cex = 0.5, number.cex = 0.7)
+```
+
+# Modelo preditivo (Classificação)
+
+## Divisão dos dados
+
+É de extrema importância começar pela etapa de divisão dos dados em treino e teste, assim será possível comparar os resultados ajustados ao treino com a aplicação do modelo em dados não treinados, assim conseguimos avaliar a performance do modelo (o quão generalista é) e evitar vieses da amostra inicial. Optou-se por separar um 70% para dados de treino e 30% para dados de teste. Além disso, os dados foram configurados em 6 conjuntos de variáveis diferentes, fazendo algumas alterações no formatado de algumas variáveis ou removendo outras afim de chegar em diferentes formatos, que podem se adequar melhores para alguns modelos do que outros (há modelos que só aceitam variáveis numéricas, então foi criado uma versão em que é retirado as variáveis categóricas). Segue as diferentes versões:
+
+\begin{enumerate}
+  \item Conjunto original.
+  \item Retirado os resultados das outras campanhas. O intuito é gerar modelos que não dependam dos resultados destas campanhas (pensando na performance a longo prazo).
+  \item Transformação das variáveis categóricas em "Dummys", com um campo para cada opção com a marcação de 1 se positivo e 0 c.c..
+  \item Retirado os resultados das outras campanhas e Transformação das variáveis categóricas em "Dummys".
+  \item Retirado de Ano de nascimento e Renda, por serem variáveis quantitativas de alta escala.
+  \item Transformação de Ano de nascimento e Renda para o formato de faixas. Ano de nascimento dividido em 5 e 5 anos e Renda para U\$10mil em U\$10mil.
+\end{enumerate}
+
+
+```{r}
+set.seed(319150)
+
+matbinaria <- matlogic(data_t_model %>% dplyr::select(Education, Marital_Status))
+
+## 1 -> Dados Originais
+data_t_model_pre <- data_t_model 
+split_data <- initial_split(data_t_model_pre, prop=0.7)
+
+#dados de treinamento
+train_1 <- split_data %>% training()
+#dados de teste
+test_1 <- split_data %>% testing()
+
+## 2 -> Retirada de resultado das última campanhas
+data_t_model_pre <- data_t_model %>% 
+  dplyr::select(-AcceptedCmp1, -AcceptedCmp2, -AcceptedCmp3,
+                -AcceptedCmp4, -AcceptedCmp5)
+split_data <- initial_split(data_t_model_pre, prop=0.7)
+
+#dados de treinamento
+train_2 <- split_data %>% training()
+#dados de teste
+test_2 <- split_data %>% testing()
+
+## 3 -> Dummys das variaveis categoricas
+data_t_model_pre <- data_t_model %>% 
+  dplyr::select(-Education, -Marital_Status) %>% 
+  cbind(matbinaria)
+colnames(data_t_model_pre) <- gsub(" ", "", colnames(data_t_model_pre))
+split_data <- initial_split(data_t_model_pre, prop=0.7)
+
+#dados de treinamento
+train_3 <- split_data %>% training()
+#dados de teste
+test_3 <- split_data %>% testing()
+
+## 4 -> Retirada de resultado das última campanhas e dummys das variaveis categoricas
+data_t_model_pre <- data_t_model %>% 
+  dplyr::select(-Education, -Marital_Status, -AcceptedCmp1, -AcceptedCmp2, -AcceptedCmp3,
+                -AcceptedCmp4, -AcceptedCmp5) %>% 
+  cbind(matbinaria)
+colnames(data_t_model_pre) <- gsub(" ", "", colnames(data_t_model_pre))
+split_data <- initial_split(data_t_model_pre, prop=0.7)
+
+#dados de treinamento
+train_4 <- split_data %>% training()
+#dados de teste
+test_4 <- split_data %>% testing()
+
+## 5 -> Retirada de Ano de Nascimento e Renda (Variáveis quantitativas da alta escala)
+data_t_model_pre <- data_t_model %>% 
+  dplyr::select(-Income, -Year_Birth)
+split_data <- initial_split(data_t_model_pre, prop=0.7)
+
+#dados de treinamento
+train_5 <- split_data %>% training()
+#dados de teste
+test_5 <- split_data %>% testing()
+
+## 6 -> Divisão de Ano de Nascimento e Renda por faixas (5 em 5 anos e 10 em 10 mil de renda)
+data_t_model_pre <- data_t_model  %>% 
+  mutate(Year_Birth = factor(ifelse(Year_Birth <= 1940, 1940, trunc(Year_Birth/5)*5)),
+         Income = factor(ifelse(Income >= 100000, 100, trunc(Income/10000)*10) + 10))
+split_data <- initial_split(data_t_model_pre, prop=0.7)
+
+#dados de treinamento
+train_6 <- split_data %>% training()
+#dados de teste
+test_6 <- split_data %>% testing()
+
+```
+
+```{r df_res_mod}
+# Dataframe Vazio para a incerção dos resultados de cada modelo
+df_res_mod <- data.frame(matrix(ncol = 7, nrow = 0))
+
+#provide column names
+colnames(df_res_mod) <- c("Modelo", "Versão_Mod", "Versão_Amost", 
+                          "Acuracia", "Precisão", "Sensibilidade", "Especificidade")
+numric_columns_res_mod <- c("Acuracia", "Precisão", "Sensibilidade", "Especificidade")
+```
+
+## Modelos Ajustados
+
+Foram testados uma série de modelos de classificação para averiguar qual se adequava melhor ao problema, os quais foram:
+
+
+\begin{itemize}
+  \item \textbf{Regressão Logística}: Modelar a probabilidade de um ponto de dados pertencer a uma das classes, utilizando uma função logística que varia de 0 a 1.
+  \item \textbf{Logística com Lasso}: Regressão logística com o método de regularização Lasso, que adiciona um custo a cada coeficiente e que leva muitos deles a se tornarem exatamente 0.
+  \item \textbf{KNN}: Classifica um novo ponto de dados com base nas classes dos K pontos mais próximos no conjunto de treinamento.
+  \item \textbf{Naive Bayes}: Calcula a probabilidade de uma observação pertencer a uma classe específica com base nas características observadas.
+  \item \textbf{Árvore de Decisão}: Estrutura de árvore que divide os dados em classes ou valores de destino com base nas características dos dados. A árvore é construída recursivamente, começando com o atributo mais informativo na raiz e dividindo os dados em ramos com base nos valores desse atributo.
+  \item \textbf{Árvore de Decisão com Bagging}: Cria várias árvores de decisão durante o treinamento, cada uma usando um subconjunto aleatório dos dados de treinamento (bootstrapping), para ajuda a criar modelos diversificados, o que geralmente leva a um melhor desempenho.
+  \item \textbf{Random Forest}: Similar ao Bagging na árvore de decisão, com a diferença de que para árvore criada em um subconjunto, também só é selecionado um subconjunto aleatório das variáveis, com o objetivo de retirar o efeito de características muito dominantes e que pode gerar uma melhora no desempenho.
+\end{itemize}
+
+## Métrica de Avaliação
+
+Para definir qual modelo obteve a melhor performance é preciso decidir qual critério de avaliação. As principais métricas em problemas de classificação estão a seguir:
+
+\begin{itemize}
+  \item \textbf{Acurácia}: Percentual de acertos total. (VP + VN)/N
+  \item \textbf{Sensibilidade}: Percentual de casos positivos classificados corretamente. VP/(VP + FN)
+  \item \textbf{Especificidade}: Percentual de casos negativos classificados corretamente. VN/(FP + VN)
+  \item \textbf{Precisão}: Percentual de verdadeiros positivos dentre todos os classificados como positivo. VP/(VP + FP)
+  \item VP: verdadeiros positivos; FN: falsos negativos; FP: falsos positivos; VN: verdadeiros negativos; P: precisão; S: sensibilidade; N: total de elementos
+  \item \textbf{F-score}: Uma média harmônica calculada com base na precisão e na revocação. 2x(PxS)/(P+S)
+\end{itemize}
+
+Como o objetivo é maximizar o lucro, é relevante avaliar a sensibilidade, para alcançar o máximo de clientes potenciais com a companha, e a precisão, para obter uma taxa de sucesso da campanha maior e consequentemente um maior lucro. Desta forma, é interessante a utlização de ambas, analogo ao "F-score". Porém, pode-se também utilzar os resultados da campanha piloto para melhorar a métrica de avaliação. De um total de 2240 cliente, 334 aderiram a campnha (15%). Os custos da campanha foi 6720MU e a receita gerada foi de 3674MU, resultando em um prejuízo -3046MU.
+
+Afim de criar um racício lógico, suponhamos que 100 seja quantidade de clientes potenciais (que vão comprar o produto se estiverem na campanha). Seja também o Modelo X o escolhido para auxiliar na campanha e ele tenha uma sensibilidade de 40% e uma precisão de 80%. Pode-se então chegar a relação de que:
+
+\begin{itemize}
+  \item O custo médio de campanha por cliente foi de 3MU (6720MU / 2240 clientes)
+  \item A receita média gerada por cliente foi de 11MU (3674MU / 334 clientes)
+  \item A Sensibilidade indica que a probabilidade do cliente estar corretamente classificado para aderir a campanha é de 40\%.
+  \item Dos 100 clientes potenciais, em média 40 receberiam a campanha. (100 * S)
+  \item A Precisão indica que há 80\% de chances de o cliente classificado como positivo ser de fato um cliente que irá comprar o produto.
+  \item Assim, a cada 40 clientes (80\%) que recebem a campanha corretamente, também há 10 clientes (20\%) que recebem incorretamente e não iram comprar o produto (prejuízo).
+  \item Desta forma, pode-se chegar ao cálculo que serão 80 clientes que receberam a campanha no total. (100*S/P)
+  \item O custo da campanha seria de 240MU (80 clientes * 3MU/cliente) (100 * S * 3)
+  \item A receita da campanha seria de 440MU (40 clientes * 11MU/cliente) (100 * S/P *11)
+  \item E então, haveria um lucro do modelo de 200MU (440MU - 240MU)
+  \item Em um cenário ideal, só seria mandado campanha para os 100 clientes potenciais, logo haveria um custo de 300MU e uma receita de 1100MU, ou seja, um lucro potencial de 800MU.
+  \item Como o objetivo é maximizar o lucro, pode-se focar em aproximar lucro do modelo ao lucro potencial.
+  \item Logo, teriamos a seguinte métrica final de porcentagem do lucro potencial: (S * 11 - S/P * 3) / (11 - 3)
+\end{itemize}
+
+
+
+
+```{r function_log, eval=FALSE, warning=FALSE, include=FALSE}
+library(MASS)
+
+run_logistic <- function(train_i, test_i){
+  ctrl <- trainControl(method = "cv", number = 10)
+  fit_cv <- train(Response ~ ., data = train_i, method = "glm", trControl = ctrl, metric = "Kappa")
+
+  # Make predictions on the test data
+  probabilities <- fit_cv %>% predict(newdata = test_i)
+  predicted.classes <- ifelse(probabilities == 1, "1", "0")
+  # Model accuracy
+  observed.classes <- test_i$Response
+  xtab <- table(pred = predicted.classes, truth = observed.classes)
+  
+  acuracia <- (xtab[1,1] + xtab[2,2])/sum(xtab)
+  precisao <- (xtab[2,2])/(xtab[2,1] + xtab[2,2])
+  sensibilidade <- (xtab[2,2])/(xtab[1,2] + xtab[2,2])
+  especificidade <- (xtab[1,1])/(xtab[1,1] + xtab[2,1])
+  res_df <- data_frame(acuracia, precisao, sensibilidade, especificidade) %>% as.matrix()
+  return(res_df)
+  
+
+}
+
+
+```
+
+
+```{r run_log, eval=FALSE, include=FALSE}
+mod_name <- 'Logistic'
+mod_vers <- '1'
+
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '1',run_logistic(train_1, test_1))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '2',run_logistic(train_2, test_2))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '3',run_logistic(train_3, test_3))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '4',run_logistic(train_4, test_4))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '5',run_logistic(train_5, test_5))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '6',run_logistic(train_6, test_6))
+```
+
+
+```{r function_lasso, eval=FALSE, include=FALSE}
+library(glmnet)
+
+run_lasso <- function(train_i, test_i){
+  # Dumy code categorical predictor variables
+  x_mat <- model.matrix(Response~., train_i)[,-1]
+  # Convert the outcome (class) to a numerical variable
+  y_resp <- ifelse(train_i$Response == "1", 1, 0)
+
+  cv.lasso <- cv.glmnet(x_mat, y_resp, alpha = 1, family = "binomial", )
+
+  # Fit the final model on the training data
+  model <- glmnet(x_mat, y_resp, alpha = 1, family = "binomial",
+                  lambda = cv.lasso$lambda.min)
+  # Display regression coefficients
+  #coef(model)
+
+  # Make predictions on the test data
+  x.test <- model.matrix(Response ~., test_i)[,-1]
+  probabilities <- model %>% predict(newx = x.test)
+  predicted.classes <- ifelse(probabilities > 0.5, "1", "0")
+  # Model accuracy
+  observed.classes <- test_i$Response
+  #mean(predicted.classes == observed.classes)
+
+  # Final model with lambda.1se
+  lasso.model <- glmnet(x_mat, y_resp, alpha = 1, family = "binomial",
+                        lambda = cv.lasso$lambda.1se)
+  # Make prediction on test data
+  x.test <- model.matrix(Response ~., test_i)[,-1]
+  probabilities <- lasso.model %>% predict(newx = x.test)
+  predicted.classes <- ifelse(probabilities > 0.5, "1", "0")
+  # Model accuracy rate
+  observed.classes <- test_i$Response
+  mean(predicted.classes == observed.classes)
+  xtab <- table(pred = predicted.classes, truth = observed.classes)
+  
+  acuracia <- (xtab[1,1] + xtab[2,2])/sum(xtab)
+  precisao <- (xtab[2,2])/(xtab[2,1] + xtab[2,2])
+  sensibilidade <- (xtab[2,2])/(xtab[1,2] + xtab[2,2])
+  especificidade <- (xtab[1,1])/(xtab[1,1] + xtab[2,1])
+  res_df <- data_frame(acuracia, precisao, sensibilidade, especificidade) %>% as.matrix()
+  return(res_df)
+}
+```
+
+
+```{r run_lasso, eval=FALSE, include=FALSE}
+mod_name <- 'Lasso'
+mod_vers <- '1'
+
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '1',run_lasso(train_1, test_1))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '2',run_lasso(train_2, test_2))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '3',run_lasso(train_3, test_3))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '4',run_lasso(train_4, test_4))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '5',run_lasso(train_5, test_5))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '6',run_lasso(train_6, test_6))
+```
+
+```{r function_knn, eval=FALSE, include=FALSE}
+run_knn <- function(train_i, test_i){
+  flag <- sum(c("Education", "Marital_Status") %in% colnames(train_i))
+  if (flag > 0){
+    train.x <- train_i %>% 
+      dplyr::select(-c("Education", "Marital_Status")) %>% 
+      dplyr::select(-Response) %>% 
+      sapply(as.numeric) %>% 
+      as.data.frame()
+    test.x <- test_i %>% 
+      dplyr::select(-c("Education", "Marital_Status")) %>% 
+      dplyr::select(-Response) %>% 
+      lapply(as.numeric) %>% 
+      as.data.frame()
+  }
+  else {
+    train.x <- train_i %>% 
+      dplyr::select(-Response)%>% 
+      lapply(as.numeric) %>% 
+      as.data.frame()
+    test.x <- test_i %>% 
+      dplyr::select(-Response)%>% 
+      lapply(as.numeric) %>% 
+      as.data.frame()
+  }
+  train.y <- train_i$Response
+  test.y <- test_i$Response
+  
+  test_mis <- c()
+  test_acc <- c()
+  test_sen <- c()
+  # for each K=i, fit the knn, find the prediction, 
+  # calculate the misclassification, store it in the ith item of vector misclassification
+  for(i in 1:50){
+    predicted <- knn(train.x,test.x,train.y ,k=i)
+    uniq_pred <- unique(predicted)
+    dec = ifelse(length(uniq_pred) == 2, "Ambos", as.character(uniq_pred[1]))
+    ConMat <- table(test.y,predicted)
+    if (dec == "Ambos"){
+      TN <- ConMat[1,1]
+      FP <- ConMat[1,2]
+      FN <- ConMat[2,1]
+      TP <- ConMat[2,2]
+    } else if (dec == "0"){
+      TN <- ConMat[1,1]
+      FP <- 0
+      FN <- ConMat[2,1]
+      TP <- 0
+    } else {
+      TN <- 0
+      FP <- ConMat[1,1]
+      FN <- 0
+      TP <- ConMat[2,1]
+    }
+    
+    test_mis[i] <-(FP+FN) / sum(ConMat)
+    test_acc[i] <-(TP + TN) / sum(ConMat)
+    test_sen[i] <-(TP) / (TP + FN)
+  }
+  test_mis
+  best_k <- which.max(test_acc)
+  predicted <- knn(train.x,test.x,train.y ,k=best_k)
+  ConMat <- table(pred = predicted, truth = test.y)
+ 
+  acuracia <- (ConMat[1,1] + ConMat[2,2])/sum(ConMat)
+  precisao <- (ConMat[2,2])/(ConMat[2,1] + ConMat[2,2])
+  sensibilidade <- (ConMat[2,2])/(ConMat[1,2] + ConMat[2,2])
+  especificidade <- (ConMat[1,1])/(ConMat[1,1] + ConMat[2,1])
+  res_df <- data_frame(acuracia, precisao, sensibilidade, especificidade) %>% as.matrix() %>% as.numeric()
+  return(res_df)
+}
+```
+
+
+```{r run_knn, eval=FALSE, include=FALSE}
+mod_name <- 'KNN'
+mod_vers <- '1'
+
+
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '1',run_knn(train_1, test_1))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '2',run_knn(train_2, test_2))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '3',run_knn(train_3, test_3))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '4',run_knn(train_4, test_4))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '5',run_knn(train_5, test_5))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '5',run_knn(train_6, test_6))
+```
+
+
+```{r function_naivebayes, eval=FALSE, include=FALSE}
+
+library(e1071)
+run_nvb_v1 <- function(train_i, test_i){
+  # set up 10-fold cross validation procedure
+  train_control <- trainControl(
+    method = "cv", 
+    number = 10
+    )
+
+  nbayes.fit <- naiveBayes(Response ~ ., data = train_i)
+  nbayes.pred <- predict(nbayes.fit, newdata = test_i)
+  
+  erro.NB = data.frame(Algoritmo = "Naive Bayes", Erro = mean(nbayes.pred != test_i$Response))
+  xtab <- table(pred = nbayes.pred, truth = test_i$Response)
+  #caret::confusionMatrix(xtab)
+  
+  acuracia <- (xtab[1,1] + xtab[2,2])/sum(xtab)
+  precisao <- (xtab[2,2])/(xtab[2,1] + xtab[2,2])
+  sensibilidade <- (xtab[2,2])/(xtab[1,2] + xtab[2,2])
+  especificidade <- (xtab[1,1])/(xtab[1,1] + xtab[2,1])
+  res_df <- data_frame(acuracia, precisao, sensibilidade, especificidade) %>% as.matrix()
+  return(res_df)
+}
+
+
+run_nvb_v2 <- function(train_i, test_i){
+  train_control <- trainControl(
+    method = "cv", 
+    number = 5
+    )
+  
+  # set up tuning grid
+  search_grid <- expand.grid(
+    usekernel = c(TRUE, FALSE),
+    fL = 0:5,
+    adjust = seq(0, 5, by = 1)
+  )
+  
+  features <- setdiff(names(train_i), "Response")
+  x <- train_i[, features]
+  y <- train_i$Response
+  
+  # train model
+  nb.m1 <- train(
+    x = x,
+    y = y,
+    method = "nb",
+    trControl = train_control,
+    metric = "Kappa", tuneGrid = search_grid
+    )
+  
+  pred <- predict(nb.m1, newdata = test_i)
+  xtab <- table(pred = pred, truth = test_i$Response)
+  #caret::confusionMatrix(xtab)
+  
+  acuracia <- (xtab[1,1] + xtab[2,2])/sum(xtab)
+  precisao <- (xtab[2,2])/(xtab[2,1] + xtab[2,2])
+  sensibilidade <- (xtab[2,2])/(xtab[1,2] + xtab[2,2])
+  especificidade <- (xtab[1,1])/(xtab[1,1] + xtab[2,1])
+  res_df <- data_frame(acuracia, precisao, sensibilidade, especificidade) %>% as.matrix()
+  return(res_df)
+}
+
+```
+
+
+```{r run_nvb, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+print("Naive Bayes Sem Cross-Validation")
+mod_name <- 'nvb'
+mod_vers <- '1'
+
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '1',run_nvb_v1(train_1, test_1))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '2',run_nvb_v1(train_2, test_2))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '3',run_nvb_v1(train_3, test_3))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '4',run_nvb_v1(train_4, test_4))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '5',run_nvb_v1(train_5, test_5))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '6',run_nvb_v1(train_6, test_6))
+
+print("Naive Bayes Sem Cross-Validation")
+mod_name <- 'nvb'
+mod_vers <- '2'
+
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '1',run_nvb_v2(train_1, test_1))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '2',run_nvb_v2(train_2, test_2))
+#df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '3',run_nvb_v2(train_3, test_3))
+#df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '4',run_nvb_v2(train_4, test_4))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '5',run_nvb_v2(train_5, test_5))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '6',run_nvb_v2(train_6, test_6))
+```
+
+
+```{r eval=FALSE, include=FALSE}
+library(h2o)
+
+h2o.no_progress()
+h2o.init()
+run_nvb_h20 <- function(train_i, test_i){
+  h2o.removeAll()
+  # create feature names
+  y <- "Response"
+  x <- setdiff(names(train_i), y)
+  
+  # h2o cannot ingest ordered factors
+  train.h2o <- train_i %>%
+    mutate_if(is.factor, factor, ordered = FALSE) %>%
+    as.h2o()
+  test.h2o <- test_i %>%
+    mutate_if(is.factor, factor, ordered = FALSE) %>%
+    as.h2o()
+  
+  # create tuning grid
+  hyper_params <- list(
+    laplace = seq(0, 5, by = 0.5)
+    )
+  
+  # build grid search 
+  grid <- h2o.grid(
+    algorithm = "naivebayes",
+    grid_id = "nb_grid",
+    x = x, 
+    y = y, 
+    training_frame = train.h2o, 
+    nfolds = 10,
+    hyper_params = hyper_params
+    )
+  
+  sorted_grid <- h2o.getGrid("nb_grid", sort_by = "accuracy", decreasing = TRUE)
+  
+  best_h2o_model <- sorted_grid@model_ids[[1]]
+  best_model <- h2o.getModel(best_h2o_model)
+  #h2o.confusionMatrix(best_model)
+  
+  pred <- as.data.frame(h2o.predict(best_model, newdata = test.h2o))[["predict"]]
+  xtab <- table(pred = pred, truth = test_i$Response)
+  #caret::confusionMatrix(xtab)
+  
+  acuracia <- (xtab[1,1] + xtab[2,2])/sum(xtab)
+  precisao <- (xtab[2,2])/(xtab[2,1] + xtab[2,2])
+  sensibilidade <- (xtab[2,2])/(xtab[1,2] + xtab[2,2])
+  especificidade <- (xtab[1,1])/(xtab[1,1] + xtab[2,1])
+  res_df <- data_frame(acuracia, precisao, sensibilidade, especificidade) %>% as.matrix()
+  return(res_df)
+}
+#h2o.shutdown(prompt = FALSE)
+```
+
+
+```{r run_nvb_h2o, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+mod_name <- 'nvb_h20'
+mod_vers <- '1'
+
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '1',run_nvb_h20(train_1, test_1))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '2',run_nvb_h20(train_2, test_2))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '3',run_nvb_h20(train_3, test_3))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '4',run_nvb_h20(train_4, test_4))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '5',run_nvb_h20(train_5, test_5))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '6',run_nvb_h20(train_6, test_6))
+```
+
+
+```{r eval=FALSE, include=FALSE}
+tree_fit <- function(train_i, test_i){
+  set.seed(99999)
+  control <- trainControl(method = "cv", number = 10)
+  tree.fit <- train(Response ~., data = train_i, method = "rpart",
+                    parms = list(split = "gini"),trControl = control, tuneLength=30)
+  pred.te <- predict(tree.fit, test_i)
+  xtab <- table(pred.te, test_i$Response)
+  
+  acuracia <- (xtab[1,1] + xtab[2,2])/sum(xtab)
+  precisao <- (xtab[2,2])/(xtab[2,1] + xtab[2,2])
+  sensibilidade <- (xtab[2,2])/(xtab[1,2] + xtab[2,2])
+  especificidade <- (xtab[1,1])/(xtab[1,1] + xtab[2,1])
+  res_df <- data_frame(acuracia, precisao, sensibilidade, especificidade) %>% as.matrix()
+  return(res_df)
+}
+```
+
+```{r run_tree, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+mod_name <- 'tree'
+mod_vers <- '1'
+
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '1',tree_fit(train_1, test_1))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '2',tree_fit(train_2, test_2))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '3',tree_fit(train_3, test_3))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '4',tree_fit(train_4, test_4))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '5',tree_fit(train_5, test_5))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '6',tree_fit(train_6, test_6))
+```
+
+
+```{r eval=FALSE, include=FALSE}
+library(ipred)
+bag_tree <- function(train_i, test_i){
+  set.seed(99999)
+  bag.tree <- bagging(Response ~., nbagg = 100, data=train_i, coob=TRUE)
+  
+  predbag.te <- predict(bag.tree, newdata=test_i)
+  xtab <- table(predbag.te, test_i$Response)
+
+  acuracia <- (xtab[1,1] + xtab[2,2])/sum(xtab)
+  precisao <- (xtab[2,2])/(xtab[2,1] + xtab[2,2])
+  sensibilidade <- (xtab[2,2])/(xtab[1,2] + xtab[2,2])
+  especificidade <- (xtab[1,1])/(xtab[1,1] + xtab[2,1])
+  res_df <- data_frame(acuracia, precisao, sensibilidade, especificidade) %>% as.matrix()
+  return(res_df)
+}
+```
+
+```{r run_bag_tree, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+mod_name <- 'bag_tree'
+mod_vers <- '1'
+
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '1',bag_tree(train_1, test_1))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '2',bag_tree(train_2, test_2))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '3',bag_tree(train_3, test_3))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '4',bag_tree(train_4, test_4))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '5',bag_tree(train_5, test_5))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '6',bag_tree(train_6, test_6))
+```
+
+
+```{r eval=FALSE, include=FALSE}
+library(randomForest)
+
+random_forest_v1 <- function(train_i, test_i){
+  set.seed(99999)
+  rf.fit = randomForest(Response ~., data=train_i,
+                        ntree=500, mtry=5, importance=TRUE)
+  
+  pred.rf <- predict(rf.fit, newdata=test_i)
+  xtab <- table(pred.rf, test_i$Response)
+
+  acuracia <- (xtab[1,1] + xtab[2,2])/sum(xtab)
+  precisao <- (xtab[2,2])/(xtab[2,1] + xtab[2,2])
+  sensibilidade <- (xtab[2,2])/(xtab[1,2] + xtab[2,2])
+  especificidade <- (xtab[1,1])/(xtab[1,1] + xtab[2,1])
+  res_df <- data_frame(acuracia, precisao, sensibilidade, especificidade) %>% as.matrix()
+  return(res_df)
+}
+
+
+
+random_forest_v2 <- function(train_i, test_i){
+  control <- trainControl(method="oob")
+  
+  set.seed(2222)
+  tunegrid <- data.frame(.mtry = sqrt(ncol(train_i) - 1))
+  rf.default = train(Response ~ ., data = train_i, method = "rf",
+                     trControl = control, tuneGrid=tunegrid)
+  
+  
+  pred.rf.default <- predict(rf.default, newdata=test_i)
+  xtab <- table(pred.rf.default, test_i$Response)
+
+  acuracia <- (xtab[1,1] + xtab[2,2])/sum(xtab)
+  precisao <- (xtab[2,2])/(xtab[2,1] + xtab[2,2])
+  sensibilidade <- (xtab[2,2])/(xtab[1,2] + xtab[2,2])
+  especificidade <- (xtab[1,1])/(xtab[1,1] + xtab[2,1])
+  res_df <- data_frame(acuracia, precisao, sensibilidade, especificidade) %>% as.matrix()
+  return(res_df)
+}
+
+random_forest_v3 <- function(train_i, test_i){
+  set.seed(2222)
+  rf.default = train(Response ~ ., data=train_i, method="rf",
+                 trControl=trainControl(method="oob"), tuneGrid=data.frame(.mtry = 1:9))
+  
+  pred.rf.default <- predict(rf.default, newdata=test_i)
+  xtab <- table(pred.rf.default, test_i$Response)
+
+  acuracia <- (xtab[1,1] + xtab[2,2])/sum(xtab)
+  precisao <- (xtab[2,2])/(xtab[2,1] + xtab[2,2])
+  sensibilidade <- (xtab[2,2])/(xtab[1,2] + xtab[2,2])
+  especificidade <- (xtab[1,1])/(xtab[1,1] + xtab[2,1])
+  res_df <- data_frame(acuracia, precisao, sensibilidade, especificidade) %>% as.matrix()
+  return(res_df)
+}
+```
+
+```{r run_rf, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+mod_name <- 'rand_for'
+mod_vers <- '1'
+
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '1',random_forest_v1(train_1, test_1))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '2',random_forest_v1(train_2, test_2))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '3',random_forest_v1(train_3, test_3))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '4',random_forest_v1(train_4, test_4))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '5',random_forest_v1(train_5, test_5))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '6',random_forest_v1(train_6, test_6))
+
+
+mod_vers <- '2'
+
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '1',random_forest_v2(train_1, test_1))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '2',random_forest_v2(train_2, test_2))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '3',random_forest_v2(train_3, test_3))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '4',random_forest_v2(train_4, test_4))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '5',random_forest_v2(train_5, test_5))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '6',random_forest_v2(train_6, test_6))
+
+
+mod_vers <- '3'
+
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '1',random_forest_v3(train_1, test_1))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '2',random_forest_v3(train_2, test_2))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '3',random_forest_v3(train_3, test_3))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '4',random_forest_v3(train_4, test_4))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '5',random_forest_v3(train_5, test_5))
+df_res_mod[nrow(df_res_mod) + 1,] = c(mod_name, mod_vers, '6',random_forest_v3(train_6, test_6))
+```
+
+```{r eval=FALSE, include=FALSE}
+df_res_mod[numric_columns_res_mod ] <- sapply(df_res_mod[numric_columns_res_mod ],as.numeric)
+
+res_modelos <- df_res_mod %>% 
+  mutate(Gastos = Sensibilidade/`Precisão`*3,
+         Receita = `Sensibilidade`*11,
+         Lucro= Receita-Gastos,
+         Margem_Lucro = Lucro/Receita,
+         Lucro_Potencial = Lucro/8) %>%
+  arrange(desc(Lucro_Potencial)) %>%
+  mutate(Modelo = ifelse(Modelo == "rand_for", "Random Forest", 
+                         ifelse(Modelo == "bag_tree", "Bagging Tree",
+                                ifelse(Modelo == "nvb", "Naive Bayes", Modelo))))
+
+
+write_csv(res_modelos, "res_modelos.csv")
+```
+
+
+## Resultados
+
+Após treinar os modelos para todas as versões da amostra, chegou-se ao resultado da tabela abaixo que apresenta os 10 modelos com melhor performance no amostra de teste, de acorodo com a métrica de lucro potencial. Como pode ser visto, o modelo de Regressão Logística na amostra 5 apresentou uma acurácia de 89.43%, precisão de 65.82% e sensibilidade de 54.17%. Desta forma, chegou-se a métrica Lucro Potencial de 43.62\%, um lucro que nos testes chega a 3.49MU/cliente. Além disso, temos uma margem de lucro 58.5%\%. (Isto seguindo as premissa do problema, com um gasto de 3MU/cliente e uma receita de 11MU/cliente).
+
+Vale ressaltar também o Modelo Lasso da amostra 1 tem a melhor precisão. Neste modelo teria a melhor taxa de sucesso da campanha, chegando uma margem de lucro de 68.5%. Porém, este é o de menor Sensibilidade e estariamos deixando de alcançar pela campanha cerca 65\% dos clientes potenciais, em termos de lucro nominal total o modelo de Regressão Logística na amostra 5 continua sendo melhor.
+
+```{r}
+library(kableExtra)
+res_modelos <- read_csv("res_modelos.csv")
+
+
+func_perc <- function(x) paste0(as.character(format(round((x*100),2)), nsmall = 2),"%")
+func_mu_c <- function(x) paste0(as.character(format(round((x),2)), nsmall = 2),"MU/cl")
+
+top_mod <- res_modelos %>% 
+  top_n(10) %>% 
+  dplyr::select(-Versão_Mod) %>% 
+  distinct() %>% 
+  mutate_at(c("Acuracia", "Precisão", "Sensibilidade", "Especificidade", "Margem_Lucro","Lucro_Potencial"),
+            func_perc) %>% 
+  mutate_at(c("Gastos", "Receita", "Lucro"),
+            func_mu_c)
+
+colnames(top_mod) <- c("Modelo","Versão Amostra","Acurácia","Precisão","Sensibilidade",
+                       "Especificidade","Gastos","Receita","Lucro","Mergem de Lucro","Lucro_Potencial")
+
+kable(top_mod, booktabs = T, caption = "Resultados dos 10 modelos mais performaticos nas amostras de teste") %>%
+  kable_styling(latex_options = c("striped", "hold_position", "scale_down"))
+```
+
+
+### Observações
+
+Também poderia ser testado modelos mais complexos, explorado melhor a iterações entre as variáveis, testado "tunnings" para melhorar a performance, redução de dimensão e entre outras abordagens, mas dado o problema e a solução apresentada, os resultados foram positivos e atenderam os requisitos pra um lucro maior para a campanha. 
+
+Como próximos passos, seria interessante aplicar um ou mais pilotos, utilizando agora a recomendação do modelo, para verificar se a performance com dados novos continua suficiente. Dado que o modelo esteja validado, o colocamos em produção para se "auto-alimentar" conforme a informação de novos clientes vão sendo atualizadas.
